@@ -1,0 +1,13 @@
+{
+  "mistake":{
+    "threshold":0.30
+  },
+  "forge":{
+    "threshold":0.70,
+    "gap_length":10,
+    "gap":true
+  },
+  "range":{
+    "threshold":0.05
+  }
+}

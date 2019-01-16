@@ -1,0 +1,236 @@
+{% extends 'base.html' %}
+<!-- content block -->
+<!--TODO 上传加进度条 jquery.form.js-->
+{% block content %}
+<style type="text/css">
+    #upload-box{
+        height:300px;
+        border:2px dashed #E3E3E3;
+        text-align:center;
+        margin-bottom:15px;
+    }
+    #inside-box{
+        font-size:30px;
+        color: #ccc;
+        cursor:default;
+        position:absolute;
+        top:135px;
+        left:0;
+        right:0;
+    }
+    input[type='file']{
+        position:absolute;
+        width:100%;
+        height:100%;
+        opacity:0;
+    }
+    span.hint{
+        font-size:12px;
+        color:#dd4646
+    }
+    div.btn a{
+        color:inherit;
+    }
+    #removeBtn{
+        cursor:pointer;
+    }
+</style>
+<div class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-10 col-md-offset-1">
+                <div class="card">
+                    <div class="header">
+                        <h4 class="title">上传数据</h4>
+                    </div>
+                    <div class="content">
+                        <form  id="uploadFm"  enctype="multipart/form-data" method="POST">
+                            {% csrf_token %}
+                            <div class="row">
+                                <div class="col-md-5">
+                                    <div class="form-group">
+                                        <label>上传日期</label>
+                                        <input type="text" class="form-control" disabled name="date" value="{% now 'Y-m-d' %}">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label>上传用户</label>
+                                        <input type="text" class="form-control" readonly name="username" value="{{ request.session.user }}">
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>产品名称（默认为上传文件名，可修改）</label>
+                                        <div class="input-group">
+                                        <input type="text" class="form-control" value="" id="datasetName" name="dataset_name">
+                                        <div class="input-group-addon" id="removeBtn"><i class="pe-7s-close"></i></div>
+                                        </div>
+                                        <span class="hint">{{ form.datasetName.errors.0|escape }}</span>
+
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div id="upload-box">
+                                        <input type="file" id="file" hidden onchange="displayFileInfo()" name="file">
+                                        <div id="inside-box"><i class="pe-7s-upload"></i>点击上传excel, 或将文件拖入框内<br>{{context.error}}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div onclick="submitFm()" class="btn btn primary pull-right" >确认上传</div>
+
+                            <div class="clearfix"></div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+{% block modal %}
+
+        <!-- modal block -->
+        <div class="modal fade " tabindex="-1" role="dialog" id='upload-modal'>
+          <div class="modal-dialog" role="document">
+            <div class="modal-content">
+              <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title">上传进度</h4>
+              </div>
+              <div class="modal-body">
+                <div style="border:1px solid black;width:80%;height:30px;">
+                    <div style="background-color: green;width:0;height: 100%;" id='progress-bar'></div>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-default " data-dismiss="modal" disabled="disabled">继续上传</button>
+                <button class="btn btn-primary" disabled="disabled" onclick="javascript:window.location.href='/table'">查看数据集</button>
+              </div>
+            </div><!-- /.modal-content -->
+          </div><!-- /.modal-dialog -->
+        </div><!-- /.modal -->
+
+         <!-- modal block -->
+        <div class="modal fade " tabindex="-1" role="dialog" id='fail-modal'>
+          <div class="modal-dialog" role="document">
+            <div class="modal-content">
+              <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title">提示</h4>
+              </div>
+              <div class="modal-body">
+                <p>文件上传失败</p>
+                <p><b>错误原因：</b><span id="errMsg"></span></p>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal">继续上传</button>
+                <div class="btn btn-primary"><a href="/table">查看数据集</a></div>
+              </div>
+            </div><!-- /.modal-content -->
+          </div><!-- /.modal-dialog -->
+        </div><!-- /.modal -->
+{% endblock modal %}
+<!-- scirpts block -->
+{% block scripts %}
+
+{{ block.super }}
+<script type="text/javascript">
+
+function submitFm(){
+    if (!beforeSubmit()) return;
+    var fm = new FormData($('#uploadFm')[0])
+    $.ajax({
+        url:"/ajax-uploadFile/",
+        data:fm,
+        type:'post',
+        cache:false,
+        contentType:false,
+        processData:false,
+        beforeSend:function(){
+            $('#upload-modal').modal();
+            $('#upload-modal').on('hidden.bs.modal',function(){
+                $('#progress-bar').css('width',0)
+            })
+        },
+        xhr: function(){ //这是关键 获取原生的xhr对象 做以前做的所有事情 
+            var xhr = jQuery.ajaxSettings.xhr();
+            xhr.upload.onprogress = function (ev) { 
+                if(ev.lengthComputable) { 
+                    var value = (event.loaded / event.total * 100 | 0);
+                    var w = $('#progress-bar').css('width');
+                    w = 0.8*value + '%';
+                    $('#progress-bar').animate({width:w},2500);
+
+                } 
+            } 
+            return xhr; 
+        }, 
+        success:function(res){
+            if(res.success==true){
+                $('#progress-bar').animate({width:'100%'}, 1000);
+                $('#upload-modal .btn').removeAttr('disabled');
+                $('#uploadFm')[0].reset();
+                displayFileInfo()
+                //trainSignal()
+            }
+            else{
+                $('#upload-modal').modal('hide');
+                $('#uploadFm')[0].reset();
+                displayFileInfo()
+                $('#fail-modal').modal();
+                $('#errMsg').text(res.ErrorMsg);
+            }
+        }
+    })
+}
+
+function trainSignal(){
+    $.ajax({
+        url:'/start-train/',
+        type:'post'
+    })
+}
+
+function beforeSubmit(){
+    var fm=$('#uploadFm');
+    var files = document.getElementById('file').files;
+    if ( files.length == 0 ){
+        window.alert("请先上传文件");
+        return false;
+    }
+    else{
+        return true;
+    }
+}
+function displayFileInfo(){
+    var fileInfo = "<b>上传文件名：</b>";
+    var file = document.getElementById('file').files[0]
+    if (file === undefined){
+        $('#inside-box').html('<i class="pe-7s-upload"></i>点击上传excel, 或将文件拖入框内');
+    }
+    else{
+        fileInfo += file.name;
+        fileInfo += "<br><b>上传文件大小：</b>"
+        fileInfo += file.size + "字节";
+        var fname=file.name.split('.');
+        fname=fname[0]
+        $('#datasetName').val(fname);
+        $('#inside-box').html(fileInfo);
+    }
+}
+$('#removeBtn').click(function(){
+    $('#uploadFm')[0].reset() ;
+    displayFileInfo();
+})
+</script>
+{% endblock scripts %}
+

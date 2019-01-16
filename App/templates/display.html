@@ -1,0 +1,332 @@
+{% extends 'base.html' %}
+{% block content %}
+<link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/bootstrap-table/1.11.1/bootstrap-table.min.css">
+<style>
+    div.block{
+        width:90%;
+        height:40%;
+        min-height: 400px;
+        margin:10px auto;
+        background-color:white;
+        padding:15px;
+    }
+    .tab-content{height:90%}
+    .tab-pane{height:100%;width:100%}
+    .vis_area{margin:15px 0px;height:380px;display:inline-block;padding:0 20px; }
+    .alert_field{color:#b10000;text-shadow: 1px 1px 2px #505050}
+    .select{border-left:4px solid black;}
+    h4{text-align: center;}
+    .form-group span{margin:10px;vertical-align: -webkit-baseline-middle}
+</style>
+<div class="content">
+    <div class="container-fluid">
+        <div class="row block" id="table-area">
+            <div id="toolbar">
+                <button id="check" class="btn btn-primary" onclick='dataAnalysis()'>
+                    <i class="icon-eye-open"></i> 数据检测
+                </button>
+            </div>
+            <table id="table" class="table table-hover"></table>
+        </div>
+        <div class="row block" id="display-area ">
+            <ul class="nav nav-tabs" role="tablist">
+                <li role="presentation" class="active"><a href="#forge_tab" aria-controls="forge_tab" role="tab" data-toggle="tab">造假率分析</a></li>
+                <li role="presentation" ><a href="#mistake_tab" aria-controls="mistake_tab" role="tab" data-toggle="tab">误输率分析</a></li>
+                <li role="presentation"><a href="#range_tab" aria-controls="range_tab" role="tab" data-toggle="tab">量程错误率</a></li>
+            </ul>
+            <div class="tab-content">
+                <div role="tabpanel" class="tab-pane active row" id="forge_tab">
+                    <div id="forge_heatmap" class="vis_area graph col-md-8" ></div>
+                    <div class="vis_area col-md-4">
+                        <h4>参数设置</h4>
+                        <form class="form-horizontal" id="forge_param_fm" >
+                            {% csrf_token %}
+                          <div class="form-group">
+                            <label for="forge_th" class="col-md-4 control-label">造假率警报阈值</label>
+                            <div class="col-md-8">
+                              <input type="number" class="form-control" id="forge_th" name="threshold" value="{{config.forge.threshold}}" min=0.0 max=1.0 step=0.01 >
+                            </div>
+                          </div>
+                          <div class="form-group">
+                            <label for="gap_length" class="col-md-4 control-label">间隔长度</label>
+                            <div class="col-md-8">
+                              <input type="number" class="form-control" id="gap_length" name="gap_length" value="{{config.forge.gap_length}}" min="8" max="14" step="1" {{config.forge.gap|yesno:',disabled'}}>
+                            </div>
+                          </div>
+                          <div class="form-group">
+                            <div class="col-md-offset-4 col-md-8">
+                                <div class="btn btn-primary btn-sm pull-right" onclick='customConfig()' >更改设置</div>
+                                <div class="btn btn-danger btn-sm ">恢复默认</div>
+                            </div>
+                          </div>
+                        </form>
+                    </div>
+                </div>
+                <div role="tabpanel" class="tab-pane row" id="mistake_tab">
+                    <div id="mistake_scatter" class="vis_area graph col-md-8"></div>
+                    <div class="vis_area col-md-4">
+                        <h4>参数设置</h4>
+                        <form class="form-horizontal" id="mistake_param_fm" >
+                            {% csrf_token %}
+                          <div class="form-group">
+                            <label for="mistake_th" class="col-md-4 control-label">误输率警报阈值</label>
+                            <div class="col-md-8">
+                              <input type="number" class="form-control" id="mistake_th" name="threshold" value="{{config.mistake.threshold}}" min=0.0 max=1.0 step=0.01 >
+                            </div>
+                          </div>
+                          <div class="form-group">
+                            <div class="col-md-offset-4 col-md-8">
+                                <div class="btn btn-primary btn-sm pull-right" onclick='customConfig()' >更改设置</div>
+                                <div class="btn btn-danger btn-sm ">恢复默认</div>
+                            </div>
+                          </div>
+                        </form>
+                    </div>
+                </div>
+                <div role="tabpanel" class="tab-pane row" id="range_tab">
+                    <div id="range_scatter" class="vis_area graph col-md-8"></div>
+                    <div class="vis_area col-md-4">
+                        <h4>参数设置</h4>
+                        <form class="form-horizontal" id="range_param_fm" >
+                            {% csrf_token %}
+                          <div class="form-group">
+                            <label for="mistake_th" class="col-md-4 control-label">量程错误率警报阈值</label>
+                            <div class="col-md-8">
+                              <input type="number" class="form-control" id="range_th" name="threshold" value="{{config.range.threshold}}" min=0.0 max=1.0 step=0.01 >
+                            </div>
+                          </div>
+                          <div class="form-group">
+                            <div class="col-md-offset-4 col-md-8">
+                                <div class="btn btn-primary btn-sm pull-right" onclick='customConfig()' >更改设置</div>
+                                <div class="btn btn-danger btn-sm ">恢复默认</div>
+                            </div>
+                          </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock content %}
+{% block scripts %}
+{{ block.super }}
+<script src="https://cdn.bootcss.com/bootstrap-table/1.12.1/bootstrap-table.js"></script>
+<script src="https://cdn.bootcss.com/bootstrap-table/1.12.1/extensions/filter-control/bootstrap-table-filter-control.min.js"></script>
+<script src="https://cdn.bootcss.com/echarts/3.8.5/echarts.js"></script>
+<script src="/static/js/echarts-gl.js"></script>
+<script src="/static/js/visualize.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){
+    var selected;
+    $('#table').bootstrapTable({
+        url:'/ajax-batch-result/',
+        toolbar:'#toolbar',
+        height:'400',
+        search:true,
+        filterControl:true,
+        showRefresh:true,
+        clickToSelect:true,
+
+        columns:[[{
+            field: 'product',
+            title: '产品',
+            align: 'center',
+            valign:'middle',
+            filterControl:'select',
+            sortable: true,
+            rowspan: 2
+        },{
+            field: 'model',
+            title: '型号',
+            align: 'center',
+            sortable: true,
+            searchable:true,
+            rowspan: 2,
+            valign: 'middle'
+        },{
+            field: 'specification',
+            title: '规格',
+            align: 'center',
+            valign: 'middle',
+            sortable:true,
+            searchable:true,
+            rowspan: 2
+        },{
+            field: 'batch_no',
+            title: '批号',
+            align: 'center',
+            valign: 'middle',
+            searchable:true,
+            rowspan: 2
+        },{
+            title: '检验结果',
+            align: 'center',
+            colspan: 3
+        },{
+            title: '设置公开性',
+            align: 'center',
+            valign: 'middle',
+            rowspan:2,
+            formatter:function(value,row,index){
+                return [
+                '<button class="icon-unlock" onclick="lock()"></button>&nbsp;'+
+                '<button class="icon-remove"></button>'
+                ]
+            }
+        }],[{
+            field: 'forge_rate',
+            title: '造假率',
+            sortable: true,
+            align: 'center',
+            cellStyle:cellStyleFormatter
+        },{
+            field: 'mistake_rate',
+            title: '误输率',
+            sortable: true,
+            align: 'center',
+            cellStyle:cellStyleFormatter
+        },{
+            field: 'range_rate',
+            title: '量程错误率',
+            sortable: true,
+            align:'center',
+            cellStyle: cellStyleFormatter
+        }]],
+        onClickRow:function(row,e){
+            $(e).siblings().removeClass('select');
+            $(e).addClass('select');
+            getVisualData(row.id);
+            selected = row.id;
+        }
+    })
+
+    // 事件做绑定，gap选项决定gap_length是否可修改
+    $('[name=gap]').change(function(event){
+        var val = event.target.value;
+        if(val=='true'){
+            $('#gap_length').removeAttr('disabled');
+        }else{
+            $('#gap_length').attr('disabled','disabled');
+        }
+    })
+
+    // tab切换绘图
+    $('a[data-toggle="tab"]').on('shown.bs.tab', function (e) {
+        if (selected !== undefined)
+            getVisualData(selected);
+    })
+})
+
+// 获取可视化所需数据并绘图
+function getVisualData(id){
+    var tab = $('.tab-pane.active')[0].id
+    if(tab == 'forge_tab'){
+        $.ajax({
+            url:'/ajax-forge-analysis/',
+            method:'post',
+            data:{'csrfmiddlewaretoken':'{{ csrf_token }}','batch_id':id},
+            success:function(data){
+                drawHeatmap(data)
+            }
+        })
+    }else if(tab == 'mistake_tab'){
+       $.ajax({
+            url:'/ajax-mistake-analysis/',
+            method:'post',
+            data:{'csrfmiddlewaretoken':'{{ csrf_token }}','batch_id':id},
+            success:function(data){
+                
+                draw_mistake_rate(data)
+            }
+        }) 
+    }else{
+        $.ajax({
+            url:'/ajax-range-analysis/',
+            method:'post',
+            data:{'csrfmiddlewaretoken':'{{ csrf_token }}','batch_id':id},
+            success:function(data){
+                drawPolarmap(data);
+                console.log(data)
+            }
+        })
+    }
+}
+function lock(){
+    event.cancelBubble=true;
+    var e=event.target;
+    if($(e).hasClass('icon-unlock'))
+        $(e).removeClass('icon-unlock').addClass('icon-lock');
+    else
+        $(e).removeClass('icon-lock').addClass('icon-unlock');
+}
+// 根据需要对警报数据进行高亮显示
+function cellStyleFormatter(value,row,index,field){
+    if(row.alert.indexOf(field)!=-1){
+        return {
+            classes:'danger alert_field'
+        }
+    }
+    return {}
+}
+
+// 单击“数据检测”，根据系统参数对选中数据进行检查
+function dataAnalysis(){
+    var data = $('#table').bootstrapTable('getData')
+        var id_list=[]
+        for (var row of data){
+            id_list.push(row.id)
+        }
+        var post_data={
+            'csrfmiddlewaretoken':'{{ csrf_token }}',
+            'id_list':JSON.stringify(id_list)
+        }
+        $.ajax({
+            url:'/ajax-check/',
+            method :'post',
+            data:post_data,
+            beforeSend:function(){
+                $('#table').bootstrapTable('showLoading');
+            },
+            success:function(){
+                $('#table').bootstrapTable('refresh');
+                $('#table').bootstrapTable('hideLoading');
+            }
+        })
+}
+
+// 单击“更改设置”，根据表单数据修改参数
+function customConfig(){
+    var data={}
+    if ($('.tab-pane.active')[0].id == 'forge_tab'){
+        data={
+            'csrfmiddlewaretoken':'{{ csrf_token }}',
+            'gap_length':$('#gap_length').val(),
+            'threshold':$('#forge_th').val(),
+            'key':'forge'
+        }
+    }else{
+        data={
+            'csrfmiddlewaretoken':'{{ csrf_token }}',
+            'threshold':$('#mistake_th').val(),
+            'outlier_proportion':$('#outlier_proportion').val(),
+            'key':'mistake'
+        }
+    }
+
+    $.ajax({
+        url:'/ajax-custom-config/',
+        method:'post',
+        data:data,
+        beforeSend:function(){
+            $('#table').bootstrapTable('showLoading');
+        },
+        success:function(){
+            $('#table').bootstrapTable('refresh');
+            $('#table').bootstrapTable('hideLoading');
+        }
+        
+    })
+}
+</script>
+{% endblock scripts%}

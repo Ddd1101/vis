@@ -1,0 +1,262 @@
+{# 本页暂时废弃 #}
+{% extends 'base.html' %}
+{% block content %}
+<style>
+    #fullGraph{
+        min-height:800px;
+    }
+    .mode_chosen select.form-control{
+        display:inline-block;
+        width:auto;
+        margin-left:10px;
+    }
+    #container{
+        min-height:800px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    #container div{
+        margin: 0 auto!important;
+    }
+    .highcharts-credits {
+        visibility: hidden;
+    }
+    .loadEffect{
+        width: 100px;
+        height: 100px;
+        position: relative;
+        margin: 250px auto;
+    }
+    .loadEffect span{
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: purple;
+        position: absolute;
+        -webkit-animation: load 1.04s ease infinite;
+    }
+    @-webkit-keyframes load{
+        0%{
+            -webkit-transform: scale(1.2);
+            opacity: 1;
+        }
+        100%{
+            -webkit-transform: scale(.3);
+            opacity: 0.5;
+        }
+    }
+    .loadEffect span:nth-child(1){
+        left: 0;
+        top: 50%;
+        margin-top:-10px;
+        -webkit-animation-delay:0.13s;
+    }
+    .loadEffect span:nth-child(2){
+        left: 14px;
+        top: 14px;
+        -webkit-animation-delay:0.26s;
+    }
+    .loadEffect span:nth-child(3){
+        left: 50%;
+        top: 0;
+        margin-left: -10px;
+        -webkit-animation-delay:0.39s;
+    }
+    .loadEffect span:nth-child(4){
+        top: 14px;
+        right:14px;
+        -webkit-animation-delay:0.52s;
+    }
+    .loadEffect span:nth-child(5){
+        right: 0;
+        top: 50%;
+        margin-top:-10px;
+        -webkit-animation-delay:0.65s;
+    }
+    .loadEffect span:nth-child(6){
+        right: 14px;
+        bottom:14px;
+        -webkit-animation-delay:0.78s;
+    }
+    .loadEffect span:nth-child(7){
+        bottom: 0;
+        left: 50%;
+        margin-left: -10px;
+        -webkit-animation-delay:0.91s;
+    }
+    .loadEffect span:nth-child(8){
+        bottom: 14px;
+        left: 14px;
+        -webkit-animation-delay:1.04s;
+    }
+
+</style>
+<div class="content">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="form-group col-md-3">
+            <label>数据集名称</label>
+            <select class="form-control" name="datasets">
+                <option value=""></option>
+                {% for opt in datasets %}
+                <option value="{{opt.datasetName}}">{{opt.datasetName}}</option>
+                {% endfor %}
+            </select>
+            </div>
+            <div class="form-group col-md-4">
+                <label>数据批次</label>
+                <select class="form-control" name="batch">
+                    <option value=""></option>
+                </select>
+            </div>
+            <div class="form-group col-md-5">
+                <label>模式</label>
+                <div class="mode_chosen">
+                <label class="radio-inline">
+                  <input type="radio" name="mode" id="full" value="full"> 整体
+                </label>
+                <label class="radio-inline">
+                  <input type="radio" name="mode" id="single" value="single"> 单个
+                </label>
+                <select name="method" class="form-control" disabled>
+                    <option value=""></option>
+                    <option value="plain">原始数据分布</option>
+                    <option value="cluster">数据聚类分布</option>
+                    <option value="som">SOM降维后数据分布</option>
+                    <option value="sequence">序列分析</option>
+                </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <div class="card" id="fullGraph">
+                    <div id="container" >
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock content %}
+
+<!-- scirpts block -->
+{% block scripts %}
+
+{{ block.super }}
+<script src="https://cdn.bootcss.com/echarts/3.8.5/echarts.js"></script>
+<script src="/static/js/echarts-gl.js"></script>
+<script src="/static/js/visualize.js" type="text/javascript"></script>
+<script type="text/javascript">
+$(document).ready(function(){
+    $('select[name=batch]').change(getBatchData);
+    $('input[name="mode"], select[name=method]').change(function(){
+        $('select[name=method]').removeAttr('disabled');
+        if ($('input[name="mode"]:checked').val()=='single'){
+            $('select[name=batch]').removeAttr('disabled')
+            getBatchData();
+        }
+        else {
+            $('select[name=batch]').attr('disabled','disabled')
+            getAllData();
+        }
+    });
+    $('select[name=datasets]').change(getBatches);
+
+})
+/* 根据选择的数据集，列出batches的名称，以batchID作为option的value */
+function getBatches(e){
+    var datasetName = e.target.value;
+    $.ajax({
+        url:'/ajax-batches-list/',
+        method:'post',
+        data:{'csrfmiddlewaretoken':'{{ csrf_token }}','datasetName':datasetName},
+        success:function(data){
+            var options=""
+            for (var batch of data){
+                options+="<option value="+batch.id+" >"+batch.batchName+"</option>";
+            }
+            $('select[name="batch"]').html(options);
+        }
+    })
+}
+
+/* 根据选定batch，对该批次数据做可视化分析 */
+function getBatchData(){
+    var id = $('select[name=batch]').val();
+    var method=$('select[name=method]').val();
+    if(id==null) return;
+    $.ajax({
+        url:'/ajax-batch-data/',
+        method:'post',
+        data:{'csrfmiddlewaretoken':'{{ csrf_token }}','batch_id':id,'method':method},
+        beforeSend:function(){
+            echarts.dispose(document.getElementById('container'));
+            $('#container').append("<p class='loadEffect'>"
+                            + "<span></span>"
+                            + "<span></span>"
+                            + "<span></span>"
+                            + "<span></span>"
+                            + "<span></span>"
+                            + "<span></span>"
+                            + "<span></span>"
+                            + "<span></span>"
+                            + "</p>");
+        },
+        success:function(data){
+            $('#container').empty();
+            if (method =='plain')
+                draw3D(data);
+            else if (method == 'cluster')
+                draw3D(data);
+            else if (method == 'som')
+                draw(data);
+            else if (method == 'sequence')
+                $('#container').append("<p>序列模型拟合准确度: "+data.score[1].toFixed(3)+"</p>");
+
+        }
+    })
+}
+
+/* 根据选定数据集，对该数据集所有批次数据做可视化分析 */
+function getAllData(){
+    var dataset=$('select[name=datasets]').val();
+    var method=$('select[name=method]').val();
+    if (dataset==""||method=="")
+        return;
+    $.ajax({
+        url:'/ajax-dataset-all/',
+        method:'post',
+        data:{'csrfmiddlewaretoken':'{{ csrf_token }}','dataset':dataset,'method':method},
+        beforeSend:function(){
+            echarts.dispose(document.getElementById('container'));
+            $('#container').append("<p class='loadEffect'>"
+                            + "<span></span>"
+                            + "<span></span>"
+                            + "<span></span>"
+                            + "<span></span>"
+                            + "<span></span>"
+                            + "<span></span>"
+                            + "<span></span>"
+                            + "<span></span>"
+                            + "</p>");
+        },
+        success:function(data){
+            $('#container').empty();
+            var height = 200 * Math.ceil(data.body.data.length/4)+50;
+            $('#container').css({'height':height+'px'});
+            console.log(data);
+            if (method == 'plain'|| method =='cluster')
+                drawAll3D(data)
+            else if (method == 'som')
+                drawAll(data)
+        }
+    })
+}
+</script>
+
+{% endblock scripts %}

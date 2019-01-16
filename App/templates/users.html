@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+	div.block{
+        width:90%;
+        min-height: 500px;
+        margin:10px auto;
+        background-color:white;
+        padding:15px;
+    }
+	div.toolbar{
+		width: 50%;
+		margin:10px auto;
+		background-color: white;
+		padding: 15px;
+	}
+	#user_graph{
+		width:80%;
+		height: 80%;
+		min-height: 500px;
+		margin:0 auto;
+	}
+</style>
+<div class="content">
+	<div class="content-fluid">
+		<div class="row">	
+			<div class="input-group toolbar">
+		      <input type="text" class="form-control" placeholder="输入测试员编号" id="inspector">
+		      <span class="input-group-btn">
+		        <button class="btn btn-default" type="button" id="search">搜索</button>
+		      </span>
+		    </div>
+			<div class="block">
+				<div id='user_graph'></div>
+			</div>
+		</div>
+	</div>
+</div>
+{% endblock content %}
+
+{% block scripts %}
+{{ block.super }}
+<script src="https://cdn.bootcss.com/echarts/3.8.5/echarts.js"></script>
+<script src="/static/js/echarts-gl.js"></script>
+<script src="/static/js/visualize.js"></script>
+<script type="text/javascript">
+$(document).ready(function(){
+	$.ajax({
+		url:'/ajax-user-graph/',
+		success:function(res){
+			draw3D(res.users,res.labels)
+		}
+	})
+	$('#search').click(function(){
+		var myChart = echarts.init(document.getElementById('user_graph'));
+		var option = myChart.getOption();
+		var no = $('#inspector').val();
+		option.series[0].symbolSize =function(value,params){
+                if(params.dataIndex==no)
+                    return 30
+                else
+                    return 10
+            };
+        myChart.setOption(option);
+	})
+	$('#inspector').keypress(function(event){
+		var code = event.keyCode;
+		if(code==13){
+			var myChart = echarts.init(document.getElementById('user_graph'));
+			var option = myChart.getOption();
+			var no = $('#inspector').val();
+			option.series[0].symbolSize =function(value,params){
+					if(params.dataIndex==no)
+						return 30
+					else
+						return 10
+				};
+			myChart.setOption(option);
+		}
+	})
+})
+</script>
+{% endblock scripts %}
